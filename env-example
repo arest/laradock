@@ -5,7 +5,7 @@
 ### Application Path
 # Point to your application code, will be available at `/var/www`.
 
-APPLICATION=../
+APPLICATION=../html
 
 ### Data Path:
 # For all storage systems.
@@ -31,6 +31,7 @@ PHP_INTERPRETER=php-fpm
 
 WORKSPACE_INSTALL_XDEBUG=false
 WORKSPACE_INSTALL_SOAP=false
+WORKSPACE_INSTALL_INTL=false
 WORKSPACE_INSTALL_MONGO=false
 WORKSPACE_INSTALL_MSSQL=false
 WORKSPACE_INSTALL_NODE=false

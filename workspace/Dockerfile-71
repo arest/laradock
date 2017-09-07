@@ -54,6 +54,14 @@ RUN groupadd -g ${PGID} laradock && \
     useradd -u ${PUID} -g laradock -m laradock && \
     apt-get update -yqq
 
+
+#####################################
+# EXTENSION FOR MAGENTO:
+#####################################
+RUN apt-get -y update
+RUN apt-get -y install php7.1-intl
+
+
 #####################################
 # SOAP:
 #####################################

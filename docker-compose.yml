@@ -2,21 +2,38 @@ version: '2'
 
 services:
 
+    unison:
+      image: leighmcculloch/unison:latest  
+      environment:
+        - UNISON_VERSION=2.48.3
+        - UNISON_WORKING_DIR=/var/www
+      volumes:
+        - /var/www
+      ports:  
+        - "5000:5000"
+
 ### Applications Code Container #############################
 
-    applications:
+    # applications:
+    #   image: tianon/true
+    #   volumes:
+    #     - ${APPLICATION}:/var/www
+
+    mysql-data:
       image: tianon/true
       volumes:
-        - ${APPLICATION}:/var/www
+        - ${DATA_SAVE_PATH}/mysql:/var/lib/mysql
 
 ### Workspace Utilities Container ###########################
 
     workspace:
+      container_name: application-workspace
       build:
         context: ./workspace
         args:
           - INSTALL_XDEBUG=${WORKSPACE_INSTALL_XDEBUG}
           - INSTALL_BLACKFIRE=${INSTALL_BLACKFIRE}
+          - INSTALL_INTL=${WORKSPACE_INSTALL_INTL}
           - INSTALL_SOAP=${WORKSPACE_INSTALL_SOAP}
           - INSTALL_MONGO=${WORKSPACE_INSTALL_MONGO}
           - INSTALL_MSSQL=${WORKSPACE_INSTALL_MSSQL}
@@ -44,7 +61,7 @@ services:
           - BLACKFIRE_CLIENT_TOKEN=${BLACKFIRE_CLIENT_TOKEN}
         dockerfile: "Dockerfile-${PHP_VERSION}"
       volumes_from:
-        - applications
+        - "unison"
       extra_hosts:
         - "dockerhost:${DOCKER_HOST_IP}"
       ports:
@@ -81,7 +98,7 @@ services:
           - INSTALL_IMAGE_OPTIMIZERS=${PHP_FPM_INSTALL_IMAGE_OPTIMIZERS}
         dockerfile: "Dockerfile-${PHP_VERSION}"
       volumes_from:
-        - applications
+        - unison
       volumes:
         - ./php-fpm/php${PHP_VERSION}.ini:/usr/local/etc/php/php.ini
       expose:
@@ -101,7 +118,7 @@ services:
       build:
         context: ./php-worker
       volumes_from:
-        - applications
+        - unison
       depends_on:
         - workspace
       extra_hosts:
@@ -118,7 +135,7 @@ services:
           - PHP_UPSTREAM_CONTAINER=${NGINX_PHP_UPSTREAM_CONTAINER}
           - PHP_UPSTREAM_PORT=${NGINX_PHP_UPSTREAM_PORT}
       volumes_from:
-        - applications
+        - "unison"
       volumes:
         - ${NGINX_HOST_LOG_PATH}:/var/log/nginx
         - ${NGINX_SITES_PATH}:/etc/nginx/sites-available
@@ -152,7 +169,7 @@ services:
           - PHP_UPSTREAM_CONTAINER=${APACHE_PHP_UPSTREAM_CONTAINER}
           - PHP_UPSTREAM_PORT=${APACHE_PHP_UPSTREAM_PORT}
       volumes_from:
-        - applications
+        - unison
       volumes:
         - ${APACHE_HOST_LOG_PATH}:/var/log/apache2
         - ${APACHE_SITES_PATH}:/etc/apache2/sites-available
@@ -170,7 +187,7 @@ services:
     hhvm:
       build: ./hhvm
       volumes_from:
-        - applications
+        - unison
       expose:
         - "9000"
       depends_on:
@@ -206,8 +223,10 @@ services:
         - MYSQL_PASSWORD=${MYSQL_PASSWORD}
         - MYSQL_ROOT_PASSWORD=${MYSQL_ROOT_PASSWORD}
         - TZ=${WORKSPACE_TIMEZONE}
+      volumes_from:
+        - "mysql-data"
       volumes:
-        - ${DATA_SAVE_PATH}/mysql:/var/lib/mysql
+        #- ${DATA_SAVE_PATH}/mysql:/var/lib/mysql
         - ${MYSQL_ENTRYPOINT_INITDB}:/docker-entrypoint-initdb.d
       ports:
         - "${MYSQL_PORT}:3306"
@@ -400,6 +419,39 @@ services:
       networks:
         - backend
 
+### RabbitMq Worker ############################
+
+    rabbitmq-worker:
+      build:
+        context: ./workspace
+        dockerfile: "Dockerfile-${PHP_VERSION}"
+      volumes_from:
+        - unison
+      command: php bin/console so:no:st --env=prod
+      networks:
+        - frontend
+        - backend
+      depends_on:
+        - nginx
+        - mysql
+        - rabbitmq
+        - workspace
+
+### Websocket server ############################
+
+    websocket:
+      build:
+        context: ./websocket
+      volumes_from:
+        - unison
+      ports:
+        - "8090:8090"
+      networks:
+        - frontend
+        - backend
+      depends_on:
+        - rabbitmq
+
 ### Beanstalkd Console Container ############################
 
     beanstalkd-console:
@@ -416,7 +468,7 @@ services:
     caddy:
       build: ./caddy
       volumes_from:
-        - applications
+        - unison
       volumes:
         - ${CADDY_CUSTOM_CADDYFILE}:/etc/Caddyfile
         - ${CADDY_HOST_LOG_PATH}:/var/log/caddy
